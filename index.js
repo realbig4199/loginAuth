@@ -2,9 +2,10 @@
 const express = require("express");
 const app = express();
 
-// jwt 모듈 가져오기 & secretText 설정
+// jwt 모듈 가져오기 & secretText & refreshSecretText 설정
 const jwt = require("jsonwebtoken");
 const secretText = "superSecret";
+const refreshSecretText = "supersuperSecret";
 
 // 목업 데이터
 const posts = [
@@ -17,6 +18,7 @@ const posts = [
     title: "Post 2",
   },
 ];
+let refreshTokens = [];
 
 // 미들웨어 등록 (req.body 사용을 위한 미들웨어 등록, json 파싱)
 app.use(express.json());
@@ -26,7 +28,18 @@ app.post("/login", (req, res) => {
   // 객체 리터럴을 이용한 할당
   const user = { name: username };
   // jwt를 이용해서 토큰 생성하기 : payload + secretText
-  const accessToken = jwt.sign(user, secretText);
+  // 유효기간 추가 : expiresIn 속성을 이용해서 유효기간을 설정할 수 있음
+  const accessToken = jwt.sign(user, secretText, { expiresIn: "30s" });
+  // jwt를 이용해서 refresh 토큰 생성하기 : payload + secretText
+  const refreshToken = jwt.sign(user, refreshSecretText, { expiresIn: "1d" });
+
+  // refreshTokens 배열에 refresh 토큰 추가 (DB에 저장하는 것이 일반적)
+  refreshTokens.push(refreshToken);
+  // refreshToken을 쿠키에 넣어주기, httpOnly 속성을 이용해서 자바스크립트에서 쿠키에 접근하는 것을 방지할 수 있음
+  // XSS Cross Site Scripting 공격을 방지하기 위한 방법
+  // maxAge 속성을 이용해서 쿠키의 유효기간을 설정할 수 있음
+  res.cookie("jwt", refreshToken, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 });
+
   // 토큰을 클라이언트에게 전달
   res.json({ accessToken: accessToken });
 });
