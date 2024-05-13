@@ -23,6 +23,10 @@ let refreshTokens = [];
 // 미들웨어 등록 (req.body 사용을 위한 미들웨어 등록, json 파싱)
 app.use(express.json());
 
+// 미들웨어 등록 (쿠키 사용을 위한 미들웨어 등록)
+const cookieParser = require("cookie-parser");
+app.use(cookieParser());
+
 app.post("/login", (req, res) => {
   const username = req.body.username;
   // 객체 리터럴을 이용한 할당
@@ -65,6 +69,30 @@ function authMiddleware(req, res, next) {
     next();
   });
 }
+
+// refresh 토큰을 이용해서 access 토큰 재발급
+app.get("/refresh", (req, res) => {
+  // 쿠키 가져오기
+  const cookies = req.cookies;
+  // 쿠키가 없을 경우 : 403 에러
+  if (!cookies?.jwt) {
+    return res.sendStatus(403);
+  }
+  // refresh 토큰 가져오기
+  const refreshToken = cookies.jwt;
+  // db에서 refresh 토큰 확인 (여기서는 refreshTokens 배열에서 확인)
+  if (!refreshTokens.includes(refreshToken)) {
+    return res.sendStatus(403);
+  }
+  // 토큰이 유효하다면, access 토큰 재발급
+  jwt.verify(refreshToken, refreshSecretText, (err, user) => {
+    if (err) return res.sendStatus(403);
+    // access 토큰 재발급
+    const accessToken = jwt.sign({ name: user.name }, secretText, { expiresIn: "30s" });
+    // 클라이언트에게 access 토큰 전달
+    res.json({ accessToken });
+  });
+});
 
 // express 앱 실행
 const port = 4000;
